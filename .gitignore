@@ -1,4 +1,6 @@
 target/**/*
+sbt-dist/**/*
+project/**/*
 bin/**/*
 .gradle/**/*
 .vscode/**/*
