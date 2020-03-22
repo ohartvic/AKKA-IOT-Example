@@ -25,7 +25,7 @@ public class DeviceTest {
   @Test
   public void testReplyWithEmptyReadingIfNoTemperatureIsKnown() {
     TestProbe<Device.RespondTemperature> probe = testKit.createTestProbe(Device.RespondTemperature.class);
-    ActorRef<Device.Command> deviceActor = testKit.spawn(Device.create("group", "device"));
+    ActorRef<Device.Command> deviceActor = testKit.spawn(Device.create("Okruzni-372", "cidlo-obyvak"));
     deviceActor.tell(new Device.ReadTemperature(42L, probe.getRef()));
     Device.RespondTemperature response = probe.receiveMessage();
     assertEquals(42L, response.requestId);
@@ -36,7 +36,7 @@ public class DeviceTest {
   public void testReplyWithLatestTemperatureReading() {
     TestProbe<Device.TemperatureRecorded> recordProbe = testKit.createTestProbe(Device.TemperatureRecorded.class);
     TestProbe<Device.RespondTemperature> readProbe = testKit.createTestProbe(Device.RespondTemperature.class);
-    ActorRef<Device.Command> deviceActor = testKit.spawn(Device.create("group", "device"));
+    ActorRef<Device.Command> deviceActor = testKit.spawn(Device.create("Okruzni-372", "cidlo-obyvak"));
 
     deviceActor.tell(new Device.RecordTemperature(1L, 24.0, recordProbe.getRef()));
     assertEquals(1L, recordProbe.receiveMessage().requestId);
@@ -58,13 +58,13 @@ public class DeviceTest {
   @Test
   public void testReplyToRegistrationRequests() {
     TestProbe<DeviceRegistered> probe = testKit.createTestProbe(DeviceRegistered.class);
-    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("Okruzni-372"));
 
-    groupActor.tell(new RequestTrackDevice("group", "device", probe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-obyvak", probe.getRef()));
     DeviceRegistered registered1 = probe.receiveMessage();
 
     // another deviceId
-    groupActor.tell(new RequestTrackDevice("group", "device3", probe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-kuchyne", probe.getRef()));
     DeviceRegistered registered2 = probe.receiveMessage();
     assertNotEquals(registered1.device, registered2.device);
 
@@ -79,21 +79,21 @@ public class DeviceTest {
   @Test
   public void testIgnoreWrongRegistrationRequests() {
     TestProbe<DeviceRegistered> probe = testKit.createTestProbe(DeviceRegistered.class);
-    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
-    groupActor.tell(new RequestTrackDevice("wrongGroup", "device1", probe.getRef()));
+    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("Okruzni-372"));
+    groupActor.tell(new RequestTrackDevice("Okruzni-258", "cidlo-garaz", probe.getRef()));
     probe.expectNoMessage();
   }
 
   @Test
   public void testReturnSameActorForSameDeviceId() {
     TestProbe<DeviceRegistered> probe = testKit.createTestProbe(DeviceRegistered.class);
-    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("Okruzni-372"));
 
-    groupActor.tell(new RequestTrackDevice("group", "device", probe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-obyvak", probe.getRef()));
     DeviceRegistered registered1 = probe.receiveMessage();
 
     // registering same again should be idempotent
-    groupActor.tell(new RequestTrackDevice("group", "device", probe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-obyvak", probe.getRef()));
     DeviceRegistered registered2 = probe.receiveMessage();
     assertEquals(registered1.device, registered2.device);
   }
@@ -101,41 +101,44 @@ public class DeviceTest {
   @Test
   public void testListActiveDevices() {
     TestProbe<DeviceRegistered> registeredProbe = testKit.createTestProbe(DeviceRegistered.class);
-    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("Okruzni-372"));
 
-    groupActor.tell(new RequestTrackDevice("group", "device1", registeredProbe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-obyvak", registeredProbe.getRef()));
     registeredProbe.receiveMessage();
 
-    groupActor.tell(new RequestTrackDevice("group", "device2", registeredProbe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-kuchyne", registeredProbe.getRef()));
+    registeredProbe.receiveMessage();
+
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-garaz", registeredProbe.getRef()));
     registeredProbe.receiveMessage();
 
     TestProbe<ReplyDeviceList> deviceListProbe = testKit.createTestProbe(ReplyDeviceList.class);
 
-    groupActor.tell(new RequestDeviceList(0L, "group", deviceListProbe.getRef()));
+    groupActor.tell(new RequestDeviceList(0L, "Okruzni-372", deviceListProbe.getRef()));
     ReplyDeviceList reply = deviceListProbe.receiveMessage();
     assertEquals(0L, reply.requestId);
-    assertEquals(Stream.of("device1", "device2").collect(Collectors.toSet()), reply.ids);
+    assertEquals(Stream.of("cidlo-obyvak", "cidlo-kuchyne", "cidlo-garaz").collect(Collectors.toSet()), reply.ids);
   }
 
   @Test
   public void testListActiveDevicesAfterOneShutsDown() {
     TestProbe<DeviceRegistered> registeredProbe = testKit.createTestProbe(DeviceRegistered.class);
-    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("group"));
+    ActorRef<DeviceGroup.Command> groupActor = testKit.spawn(DeviceGroup.create("Okruzni-372"));
 
-    groupActor.tell(new RequestTrackDevice("group", "device1", registeredProbe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-obyvak", registeredProbe.getRef()));
     DeviceRegistered registered1 = registeredProbe.receiveMessage();
 
-    groupActor.tell(new RequestTrackDevice("group", "device2", registeredProbe.getRef()));
+    groupActor.tell(new RequestTrackDevice("Okruzni-372", "cidlo-kuchyne", registeredProbe.getRef()));
     DeviceRegistered registered2 = registeredProbe.receiveMessage();
 
     ActorRef<Device.Command> toShutDown = registered1.device;
 
     TestProbe<ReplyDeviceList> deviceListProbe = testKit.createTestProbe(ReplyDeviceList.class);
 
-    groupActor.tell(new RequestDeviceList(0L, "group", deviceListProbe.getRef()));
+    groupActor.tell(new RequestDeviceList(0L, "Okruzni-372", deviceListProbe.getRef()));
     ReplyDeviceList reply = deviceListProbe.receiveMessage();
     assertEquals(0L, reply.requestId);
-    assertEquals(Stream.of("device1", "device2").collect(Collectors.toSet()), reply.ids);
+    assertEquals(Stream.of("cidlo-obyvak", "cidlo-kuchyne").collect(Collectors.toSet()), reply.ids);
 
     toShutDown.tell(Device.Passivate.INSTANCE);
     registeredProbe.expectTerminated(toShutDown, registeredProbe.getRemainingOrDefault());
@@ -143,10 +146,10 @@ public class DeviceTest {
     // using awaitAssert to retry because it might take longer for the groupActor
     // to see the Terminated, that order is undefined
     registeredProbe.awaitAssert(() -> {
-      groupActor.tell(new RequestDeviceList(1L, "group", deviceListProbe.getRef()));
+      groupActor.tell(new RequestDeviceList(1L, "Okruzni-372", deviceListProbe.getRef()));
       ReplyDeviceList r = deviceListProbe.receiveMessage();
       assertEquals(1L, r.requestId);
-      assertEquals(Stream.of("device2").collect(Collectors.toSet()), r.ids);
+      assertEquals(Stream.of("cidlo-kuchyne").collect(Collectors.toSet()), r.ids);
       return null;
     });
   }

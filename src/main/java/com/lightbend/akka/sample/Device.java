@@ -80,9 +80,12 @@ public class Device extends AbstractBehavior<Device.Command> {
 
   @Override
   public Receive<Command> createReceive() {
-    return newReceiveBuilder().onMessage(RecordTemperature.class, this::onRecordTemperature)
-        .onMessage(ReadTemperature.class, this::onReadTemperature).onMessage(Passivate.class, m -> Behaviors.stopped())
-        .onSignal(PostStop.class, signal -> onPostStop()).build();
+    return newReceiveBuilder()
+        .onMessage(RecordTemperature.class, this::onRecordTemperature)
+        .onMessage(ReadTemperature.class, this::onReadTemperature)
+        .onMessage(Passivate.class, m -> Behaviors.stopped())
+        .onSignal(PostStop.class, signal -> onPostStop())
+        .build();
   }
 
   private Behavior<Command> onRecordTemperature(RecordTemperature r) {
