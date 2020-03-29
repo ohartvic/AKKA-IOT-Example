@@ -1,21 +1,32 @@
 package com.lightbend.akka.sample;
 
-import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
-import akka.actor.testkit.typed.javadsl.TestProbe;
-import akka.actor.typed.ActorRef;
-import org.junit.ClassRule;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.lightbend.akka.sample.DeviceManager.DeviceNotAvailable;
 import com.lightbend.akka.sample.DeviceManager.DeviceRegistered;
+import com.lightbend.akka.sample.DeviceManager.DeviceTimedOut;
 import com.lightbend.akka.sample.DeviceManager.ReplyDeviceList;
 import com.lightbend.akka.sample.DeviceManager.RequestDeviceList;
 import com.lightbend.akka.sample.DeviceManager.RequestTrackDevice;
+import com.lightbend.akka.sample.DeviceManager.RespondAllTemperatures;
+import com.lightbend.akka.sample.DeviceManager.Temperature;
+import com.lightbend.akka.sample.DeviceManager.TemperatureNotAvailable;
+import com.lightbend.akka.sample.DeviceManager.TemperatureReading;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import org.junit.ClassRule;
+import org.junit.Test;
+
+import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
+import akka.actor.testkit.typed.javadsl.TestProbe;
+import akka.actor.typed.ActorRef;
 
 public class DeviceTest {
 
@@ -152,5 +163,165 @@ public class DeviceTest {
       assertEquals(Stream.of("cidlo-kuchyne").collect(Collectors.toSet()), r.ids);
       return null;
     });
+  }
+
+  @Test
+  public void testReturnTemperatureValueForWorkingDevices() {
+    TestProbe<RespondAllTemperatures> requester = testKit.createTestProbe(RespondAllTemperatures.class);
+    TestProbe<Device.Command> device1 = testKit.createTestProbe(Device.Command.class);
+    TestProbe<Device.Command> device2 = testKit.createTestProbe(Device.Command.class);
+
+    Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    deviceIdToActor.put("cidlo-obyvak", device1.getRef());
+    deviceIdToActor.put("cidlo-kuchyne", device2.getRef());
+
+    ActorRef<DeviceGroupQuery.Command> queryActor = testKit
+        .spawn(DeviceGroupQuery.create(deviceIdToActor, 1L, requester.getRef(), Duration.ofSeconds(3)));
+
+    device1.expectMessageClass(Device.ReadTemperature.class);
+    device2.expectMessageClass(Device.ReadTemperature.class);
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-obyvak", Optional.of(1.0))));
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-kuchyne", Optional.of(2.0))));
+
+    RespondAllTemperatures response = requester.receiveMessage();
+    assertEquals(1L, response.requestId);
+
+    Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+    expectedTemperatures.put("cidlo-obyvak", new Temperature(1.0));
+    expectedTemperatures.put("cidlo-kuchyne", new Temperature(2.0));
+
+    assertEquals(expectedTemperatures, response.temperatures);
+  }
+
+  @Test
+  public void testReturnTemperatureNotAvailableForDevicesWithNoReadings() {
+    TestProbe<RespondAllTemperatures> requester = testKit.createTestProbe(RespondAllTemperatures.class);
+    TestProbe<Device.Command> device1 = testKit.createTestProbe(Device.Command.class);
+    TestProbe<Device.Command> device2 = testKit.createTestProbe(Device.Command.class);
+
+    Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    deviceIdToActor.put("cidlo-obyvak", device1.getRef());
+    deviceIdToActor.put("cidlo-kuchyne", device2.getRef());
+
+    ActorRef<DeviceGroupQuery.Command> queryActor = testKit
+        .spawn(DeviceGroupQuery.create(deviceIdToActor, 1L, requester.getRef(), Duration.ofSeconds(3)));
+
+    assertEquals(0L, device1.expectMessageClass(Device.ReadTemperature.class).requestId);
+    assertEquals(0L, device2.expectMessageClass(Device.ReadTemperature.class).requestId);
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-obyvak", Optional.empty())));
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-kuchyne", Optional.of(2.0))));
+
+    RespondAllTemperatures response = requester.receiveMessage();
+    assertEquals(1L, response.requestId);
+
+    Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+    expectedTemperatures.put("cidlo-obyvak", TemperatureNotAvailable.INSTANCE);
+    expectedTemperatures.put("cidlo-kuchyne", new Temperature(2.0));
+
+    assertEquals(expectedTemperatures, response.temperatures);
+  }
+
+  @Test
+  public void testReturnDeviceNotAvailableIfDeviceStopsBeforeAnswering() {
+    TestProbe<RespondAllTemperatures> requester = testKit.createTestProbe(RespondAllTemperatures.class);
+    TestProbe<Device.Command> device1 = testKit.createTestProbe(Device.Command.class);
+    TestProbe<Device.Command> device2 = testKit.createTestProbe(Device.Command.class);
+
+    Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    deviceIdToActor.put("cidlo-obyvak", device1.getRef());
+    deviceIdToActor.put("cidlo-kuchyne", device2.getRef());
+
+    ActorRef<DeviceGroupQuery.Command> queryActor = testKit
+        .spawn(DeviceGroupQuery.create(deviceIdToActor, 1L, requester.getRef(), Duration.ofSeconds(3)));
+
+    assertEquals(0L, device1.expectMessageClass(Device.ReadTemperature.class).requestId);
+    assertEquals(0L, device2.expectMessageClass(Device.ReadTemperature.class).requestId);
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-obyvak", Optional.of(1.0))));
+
+    device2.stop();
+
+    RespondAllTemperatures response = requester.receiveMessage();
+    assertEquals(1L, response.requestId);
+
+    Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+    expectedTemperatures.put("cidlo-obyvak", new Temperature(1.0));
+    expectedTemperatures.put("cidlo-kuchyne", DeviceNotAvailable.INSTANCE);
+
+    assertEquals(expectedTemperatures, response.temperatures);
+  }
+
+  @Test
+  public void testReturnTemperatureReadingEvenIfDeviceStopsAfterAnswering() {
+    TestProbe<RespondAllTemperatures> requester = testKit.createTestProbe(RespondAllTemperatures.class);
+    TestProbe<Device.Command> device1 = testKit.createTestProbe(Device.Command.class);
+    TestProbe<Device.Command> device2 = testKit.createTestProbe(Device.Command.class);
+
+    Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    deviceIdToActor.put("cidlo-obyvak", device1.getRef());
+    deviceIdToActor.put("cidlo-kuchyne", device2.getRef());
+
+    ActorRef<DeviceGroupQuery.Command> queryActor = testKit
+        .spawn(DeviceGroupQuery.create(deviceIdToActor, 1L, requester.getRef(), Duration.ofSeconds(3)));
+
+    assertEquals(0L, device1.expectMessageClass(Device.ReadTemperature.class).requestId);
+    assertEquals(0L, device2.expectMessageClass(Device.ReadTemperature.class).requestId);
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-obyvak", Optional.of(1.0))));
+
+    queryActor.tell(new DeviceGroupQuery.WrappedRespondTemperature(
+        new Device.RespondTemperature(0L, "cidlo-kuchyne", Optional.of(2.0))));
+
+    device2.stop();
+
+    RespondAllTemperatures response = requester.receiveMessage();
+    assertEquals(1L, response.requestId);
+
+    Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+    expectedTemperatures.put("cidlo-obyvak", new Temperature(1.0));
+    expectedTemperatures.put("cidlo-kuchyne", new Temperature(2.0));
+
+    assertEquals(expectedTemperatures, response.temperatures);
+  }
+
+  @Test
+  public void testReturnDeviceTimedOutIfDeviceDoesNotAnswerInTime() {
+    TestProbe<RespondAllTemperatures> requester = testKit.createTestProbe(RespondAllTemperatures.class);
+    TestProbe<Device.Command> device1 = testKit.createTestProbe(Device.Command.class);
+    TestProbe<Device.Command> device2 = testKit.createTestProbe(Device.Command.class);
+
+    Map<String, ActorRef<Device.Command>> deviceIdToActor = new HashMap<>();
+    deviceIdToActor.put("cidlo-obyvak", device1.getRef());
+    deviceIdToActor.put("cidlo-kuchyne", device2.getRef());
+
+    ActorRef<DeviceGroupQuery.Command> queryActor = testKit
+        .spawn(DeviceGroupQuery.create(deviceIdToActor, 1L, requester.getRef(), Duration.ofMillis(200)));
+
+    assertEquals(0L, device1.expectMessageClass(Device.ReadTemperature.class).requestId);
+    assertEquals(0L, device2.expectMessageClass(Device.ReadTemperature.class).requestId);
+
+    queryActor.tell(
+        new DeviceGroupQuery.WrappedRespondTemperature(new Device.RespondTemperature(0L, "cidlo-obyvak", Optional.of(1.0))));
+
+    // no reply from device2
+
+    RespondAllTemperatures response = requester.receiveMessage();
+    assertEquals(1L, response.requestId);
+
+    Map<String, TemperatureReading> expectedTemperatures = new HashMap<>();
+    expectedTemperatures.put("cidlo-obyvak", new Temperature(1.0));
+    expectedTemperatures.put("cidlo-kuchyne", DeviceTimedOut.INSTANCE);
+
+    assertEquals(expectedTemperatures, response.temperatures);
   }
 }
