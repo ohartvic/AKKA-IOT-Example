@@ -5,3 +5,5 @@ bin/**/*
 _/**/*
 .classpath
 .project
+.settings/org.eclipse.buildship.core.prefs
+.settings/org.eclipse.buildship.core.prefs
