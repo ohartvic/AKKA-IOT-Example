@@ -52,12 +52,13 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
                 getContext().getLog().info("Creating device actor for {}", trackMsg.deviceId);
                 deviceActor = getContext().spawn(Device.create(groupId, trackMsg.deviceId),
                         "device-" + trackMsg.deviceId);
+                getContext().watchWith(deviceActor, new DeviceTerminated(deviceActor, this.groupId, trackMsg.deviceId));
                 deviceIdToActor.put(trackMsg.deviceId, deviceActor);
                 trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
             }
         } else {
             getContext().getLog().warn("Ignoring TrackDevice request for {}. This actor is responsible for {}.",
-                    groupId, this.groupId);
+                    trackMsg.groupId, this.groupId);
         }
         return this;
     }
@@ -75,7 +76,8 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
 
     @Override
     public Receive<Command> createReceive() {
-        return newReceiveBuilder().onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice)
+        return newReceiveBuilder()
+                .onMessage(DeviceManager.RequestTrackDevice.class, this::onTrackDevice)
                 .onMessage(DeviceTerminated.class, this::onTerminated)
                 .onMessage(RequestDeviceList.class, r -> r.groupId.equals(groupId), this::onDeviceList)
                 .onSignal(PostStop.class, signal -> onPostStop()).build();

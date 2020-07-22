@@ -15,6 +15,7 @@ import akka.actor.typed.javadsl.Receive;
 
 public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
     public interface Command {
+    public interface Command {
     }
 
     //

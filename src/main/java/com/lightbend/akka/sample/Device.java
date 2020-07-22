@@ -92,8 +92,7 @@ public class Device extends AbstractBehavior<Device.Command> {
 
   private Behavior<Command> onRecordTemperature(final RecordTemperature r) {
     getContext().getLog().info("Recorded temperature reading {} with {}", r.value, r.requestId);
-    lastTemperatureReading = Optional.of(r.value);
-    r.replyTo.tell(new TemperatureRecorded(r.requestId));
+
     return this;
   }
 

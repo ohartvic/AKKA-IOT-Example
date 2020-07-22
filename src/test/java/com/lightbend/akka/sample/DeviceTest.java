@@ -1,8 +1,6 @@
 package com.lightbend.akka.sample;
 
-import static org.junit.Assert.assertEquals;
-
-import java.util.Optional;
+import java.time.Duration;
 
 import org.junit.ClassRule;
 import org.junit.Test;

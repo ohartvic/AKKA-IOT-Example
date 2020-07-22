@@ -1,7 +1,9 @@
 target/**/*
+sbt-dist/**/*
+project/**/*
 bin/**/*
-.vscode/**/*
 .gradle/**/*
+.vscode/**/*
 _/**/*
 .classpath
 .project
