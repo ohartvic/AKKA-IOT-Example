@@ -47,6 +47,7 @@ public class Device extends AbstractBehavior<Device.Command> {
 
   public static final class RespondTemperature {
     final long requestId;
+    final String deviceId;
     final Optional<Double> value;
     final String deviceId;
 
@@ -82,21 +83,20 @@ public class Device extends AbstractBehavior<Device.Command> {
 
   @Override
   public Receive<Command> createReceive() {
-    return newReceiveBuilder()
-        .onMessage(RecordTemperature.class, this::onRecordTemperature)
-        .onMessage(ReadTemperature.class, this::onReadTemperature)
-        .onMessage(Passivate.class, m -> Behaviors.stopped())
-        .onSignal(PostStop.class, signal -> onPostStop())
-        .build();
+    return newReceiveBuilder().onMessage(RecordTemperature.class, this::onRecordTemperature)
+        .onMessage(ReadTemperature.class, this::onReadTemperature).onMessage(Passivate.class, m -> Behaviors.stopped())
+        .onSignal(PostStop.class, signal -> onPostStop()).build();
   }
 
   private Behavior<Command> onRecordTemperature(final RecordTemperature r) {
     getContext().getLog().info("Recorded temperature reading {} with {}", r.value, r.requestId);
-
+    lastTemperatureReading = Optional.of(r.value);
+    r.replyTo.tell(new TemperatureRecorded(r.requestId));
     return this;
   }
 
   private Behavior<Command> onReadTemperature(final ReadTemperature r) {
+
     r.replyTo.tell(new RespondTemperature(r.requestId, deviceId, lastTemperatureReading));
     return this;
   }

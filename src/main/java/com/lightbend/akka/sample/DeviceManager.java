@@ -14,9 +14,15 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
 public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
-    public interface Command {
+<<<<<<< HEAD
     public interface Command {
     }
+=======
+
+  public interface Command {}
+
+  public interface TemperatureReading {}
+>>>>>>> 727dee666450d1d71bf5cb89c34d8ceec9e38bd6
 
     //
     // device protocol
@@ -64,6 +70,7 @@ public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
         }
     }
 
+<<<<<<< HEAD
     private static class DeviceGroupTerminated implements DeviceManager.Command {
         public final String groupId;
 
@@ -148,22 +155,112 @@ public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
     //
     // actual behavior
     //
+=======
+    public static final class RequestAllTemperatures implements DeviceGroupQuery.Command, DeviceGroup.Command, Command {
+      final long requestId;
+      final String groupId;
+      final ActorRef<RespondAllTemperatures> replyTo;
+
+      public RequestAllTemperatures(long requestId, String groupId, ActorRef<RespondAllTemperatures> replyTo) {
+        this.requestId = requestId;
+        this.groupId = groupId;
+        this.replyTo = replyTo;
+      }
+    }
+
+    public static final class RespondAllTemperatures {
+      final long requestId;
+      final Map<String, TemperatureReading> temperatures;
+    
+      public RespondAllTemperatures(long requestId, Map<String, TemperatureReading> temperatures) {
+        this.requestId = requestId;
+        this.temperatures = temperatures;
+      }
+    }
+    
+    public static final class Temperature implements TemperatureReading {
+      public final double value;
+    
+      public Temperature(double value) {
+        this.value = value;
+      }
+    
+      @Override
+      public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+    
+        Temperature that = (Temperature) o;
+    
+        return Double.compare(that.value, value) == 0;
+      }
+    
+      @Override
+      public int hashCode() {
+        long temp = Double.doubleToLongBits(value);
+        return (int) (temp ^ (temp >>> 32));
+      }
+    
+      @Override
+      public String toString() {
+        return "Temperature{" + "value=" + value + '}';
+      }
+    }
+
+    public enum TemperatureNotAvailable implements TemperatureReading {
+      INSTANCE
+    }
+    
+    public enum DeviceNotAvailable implements TemperatureReading {
+      INSTANCE
+    }
+    
+    public enum DeviceTimedOut implements TemperatureReading {
+      INSTANCE
+    }
+
+    private static class DeviceGroupTerminated implements DeviceManager.Command {
+        public final String groupId;
+    
+        DeviceGroupTerminated(String groupId) {
+          this.groupId = groupId;
+        }
+    }
+>>>>>>> 727dee666450d1d71bf5cb89c34d8ceec9e38bd6
 
     public static Behavior<Command> create() {
         return Behaviors.setup(DeviceManager::new);
     }
 
+<<<<<<< HEAD
     private final Map<String, ActorRef<DeviceGroup.Command>> groupIdToActor = new HashMap<>();
 
     private DeviceManager(ActorContext<Command> context) {
         super(context);
         context.getLog().info("DeviceManager started");
+=======
+    private DeviceManager(ActorContext<Command> context) {
+        super(context);
+        getContext().getLog().info("DeviceManager started");
+    }
+
+    private final Map<String, ActorRef<DeviceGroup.Command>> groupIdToActor = new HashMap();
+
+    public Receive<Command> createReceive() {
+        return newReceiveBuilder()
+            .onMessage(RequestTrackDevice.class, this::onTrackDevice)
+            .onMessage(RequestDeviceList.class, this::onRequestDeviceList)
+            .onMessage(DeviceGroupTerminated.class, this::onTerminated)
+            .onSignal(PostStop.class, signal -> onPostStop())
+            .build();
+>>>>>>> 727dee666450d1d71bf5cb89c34d8ceec9e38bd6
     }
 
     private DeviceManager onTrackDevice(RequestTrackDevice trackMsg) {
         String groupId = trackMsg.groupId;
         ActorRef<DeviceGroup.Command> ref = groupIdToActor.get(groupId);
         if (ref != null) {
+<<<<<<< HEAD
             ref.tell(trackMsg);
         } else {
             getContext().getLog().info("Creating device group actor for {}", groupId);
@@ -203,4 +300,39 @@ public class DeviceManager extends AbstractBehavior<DeviceManager.Command> {
         getContext().getLog().info("DeviceManager stopped");
         return this;
     }
+=======
+          ref.tell(trackMsg);
+        } else {
+          getContext().getLog().info("Creating device group actor for {}", groupId);
+          ActorRef<DeviceGroup.Command> groupActor =
+              getContext().spawn(DeviceGroup.create(groupId), "group-" + groupId);
+          getContext().watchWith(groupActor, new DeviceGroupTerminated(groupId));
+          groupActor.tell(trackMsg);
+          groupIdToActor.put(groupId, groupActor);
+        }
+        return this;
+      }
+    
+      private DeviceManager onRequestDeviceList(RequestDeviceList request) {
+        ActorRef<DeviceGroup.Command> ref = groupIdToActor.get(request.groupId);
+        if (ref != null) {
+          ref.tell(request);
+        } else {
+          request.replyTo.tell(new ReplyDeviceList(request.requestId, Collections.emptySet()));
+        }
+        return this;
+      }
+    
+      private DeviceManager onTerminated(DeviceGroupTerminated t) {
+        getContext().getLog().info("Device group actor for {} has been terminated", t.groupId);
+        groupIdToActor.remove(t.groupId);
+        return this;
+      }
+       
+      private DeviceManager onPostStop() {
+        getContext().getLog().info("DeviceManager stopped");
+        return this;
+      }
+
+>>>>>>> 727dee666450d1d71bf5cb89c34d8ceec9e38bd6
 }
