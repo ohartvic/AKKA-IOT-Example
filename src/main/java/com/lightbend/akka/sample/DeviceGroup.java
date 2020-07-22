@@ -50,7 +50,7 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
             if (deviceActor != null) {
                 trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
             } else {
-                getContext().getLog().info("Creating device actor for {}", trackMsg.deviceId);
+                getContext().getLog().info("Creating device actor for deviceId={}", trackMsg.deviceId);
                 deviceActor = getContext().spawn(Device.create(groupId, trackMsg.deviceId),
                         "device-" + trackMsg.deviceId);
                 getContext().watchWith(deviceActor, new DeviceTerminated(deviceActor, this.groupId, trackMsg.deviceId));
@@ -58,14 +58,14 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
                 trackMsg.replyTo.tell(new DeviceManager.DeviceRegistered(deviceActor));
             }
         } else {
-            getContext().getLog().warn("Ignoring TrackDevice request for {}. This actor is responsible for {}.",
+            getContext().getLog().warn("Ignoring TrackDevice request for groupId={}. This actor is responsible for group with groupId={}.",
                     trackMsg.groupId, this.groupId);
         }
         return this;
     }
 
     private DeviceGroup onTerminated(DeviceTerminated t) {
-        getContext().getLog().info("Device actor for {} has been terminated", t.deviceId);
+        getContext().getLog().info("Device actor for deviceId={} has been terminated", t.deviceId);
         deviceIdToActor.remove(t.deviceId);
         return this;
     }
@@ -83,8 +83,7 @@ public class DeviceGroup extends AbstractBehavior<DeviceGroup.Command> {
         // defensive copy of the
         // mutable map:
         //
-        // Feel free to use your favourite immutable data-structures library with Akka
-        // in Java
+        // Feel free to use your favourite immutable data-structures library with Akka in Java
         // applications!
         Map<String, ActorRef<Device.Command>> deviceIdToActorCopy = new HashMap<>(this.deviceIdToActor);
 
