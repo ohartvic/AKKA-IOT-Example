@@ -49,7 +49,6 @@ public class Device extends AbstractBehavior<Device.Command> {
     final long requestId;
     final String deviceId;
     final Optional<Double> value;
-    final String deviceId;
 
     public RespondTemperature(final long requestId, final String deviceId, final Optional<Double> value) {
       this.requestId = requestId;
