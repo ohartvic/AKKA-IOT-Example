@@ -1,6 +1,8 @@
 package com.lightbend.akka.sample;
 
-import java.time.Duration;
+import static org.junit.Assert.assertEquals;
+<<<<<<< HEAD
+
 =======
 import static org.junit.Assert.assertNotEquals;
 
