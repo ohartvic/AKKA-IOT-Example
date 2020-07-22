@@ -95,7 +95,6 @@ public class Device extends AbstractBehavior<Device.Command> {
   }
 
   private Behavior<Command> onReadTemperature(final ReadTemperature r) {
-
     r.replyTo.tell(new RespondTemperature(r.requestId, deviceId, lastTemperatureReading));
     return this;
   }
